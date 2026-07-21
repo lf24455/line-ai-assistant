@@ -20,6 +20,11 @@ app = FastAPI()
 
 channel_secret = os.getenv("LINE_CHANNEL_SECRET", "")
 channel_access_token = os.getenv("LINE_CHANNEL_ACCESS_TOKEN", "")
+SHEET_API_URL = (
+    "https://script.google.com/macros/s/"
+    "AKfycbzjFS9NuaGZaagTVAdltf1o2jPr3qbDAXUX9GQGq7ajkWM6QWFaw6k3SFp0SqQFQfbO"
+    "/exec"
+)
 
 handler = WebhookHandler(channel_secret)
 
@@ -92,18 +97,35 @@ def get_taifex_message() -> str:
         return "⚠️ 期交所回傳格式異常，請稍後再試。"
 
 
+
+def get_sheet_market_data() -> str:
+    try:
+        response = requests.get(SHEET_API_URL, timeout=15)
+        response.raise_for_status()
+
+        result = response.text.strip()
+
+        if not result:
+            return "⚠️ Google Sheet 目前沒有回傳資料。"
+
+        return result
+
+    except requests.RequestException as error:
+        print("Google Apps Script error:", repr(error))
+        return "⚠️ 暫時無法讀取行情資料，請稍後再試。"
 @handler.add(MessageEvent, message=TextMessageContent)
 def handle_text_message(event):
     user_text = event.message.text.strip()
 
-    if user_text in {"台指", "台指期", "夜盤"}:
-        reply_text = get_taifex_message()
+    if user_text in {"台指", "台指期", "全部", "行情"}:
+        reply_text = get_sheet_market_data()
     else:
         reply_text = (
             "目前可用指令：\n"
             "• 台指\n"
             "• 台指期\n"
-            "• 夜盤"
+            "• 全部\n"
+            "• 行情"
         )
 
     configuration = Configuration(
