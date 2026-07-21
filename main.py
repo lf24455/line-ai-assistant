@@ -1,3 +1,6 @@
+from datetime import datetime
+import requests
+
 import os
 
 from fastapi import FastAPI, Header, HTTPException, Request
@@ -58,9 +61,50 @@ async def webhook(
     return {"status": "ok"}
 
 
+def get_taifex_message() -> str:
+    """
+    第一版先確認機器人能連到期交所 OpenAPI。
+    下一步再依實際資料欄位挑出 TX 近月契約。
+    """
+    api_url = "https://openapi.taifex.com.tw/v1/DailyMarketReportFut"
+
+    try:
+        response = requests.get(api_url, timeout=15)
+        response.raise_for_status()
+        data = response.json()
+
+        if not isinstance(data, list) or not data:
+            return "⚠️ 目前沒有取得台指期資料，請稍後再試。"
+
+        return (
+            "📈 台指期資料來源已連線\n\n"
+            f"取得資料筆數：{len(data)} 筆\n"
+            f"查詢時間：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+            "下一步會自動篩選 TX 近月契約與目前點數。"
+        )
+
+    except requests.RequestException as error:
+        print("TAIFEX API request error:", repr(error))
+        return "⚠️ 無法連接期交所資料，請稍後再試。"
+
+    except ValueError as error:
+        print("TAIFEX JSON error:", repr(error))
+        return "⚠️ 期交所回傳格式異常，請稍後再試。"
+
+
 @handler.add(MessageEvent, message=TextMessageContent)
 def handle_text_message(event):
     user_text = event.message.text.strip()
+
+    if user_text in {"台指", "台指期", "夜盤"}:
+        reply_text = get_taifex_message()
+    else:
+        reply_text = (
+            "目前可用指令：\n"
+            "• 台指\n"
+            "• 台指期\n"
+            "• 夜盤"
+        )
 
     configuration = Configuration(
         access_token=channel_access_token
@@ -72,10 +116,6 @@ def handle_text_message(event):
         messaging_api.reply_message(
             ReplyMessageRequest(
                 reply_token=event.reply_token,
-                messages=[
-                    TextMessage(
-                        text=f'Hello，我收到「{user_text}」了！'
-                    )
-                ],
+                messages=[TextMessage(text=reply_text)],
             )
         )
