@@ -71,11 +71,14 @@ def get_taifex_data() -> dict:
         timeout=20,
     )
 
+    print("Status:", response.status_code)
+    print("Response:", response.text)
+
     response.raise_for_status()
+
     data = response.json()
 
-    if not isinstance(data, dict):
-        raise ValueError("Apps Script 回傳格式不是 JSON 物件")
+    print("JSON:", data)
 
     return data
 
