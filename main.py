@@ -117,31 +117,55 @@ def get_sheet_market_data() -> str:
 @handler.add(MessageEvent, message=TextMessageContent)
 def handle_text_message(event):
     user_text = event.message.text.strip()
-reply_text = ""
 
-if user_text == "台指":
+    try:
+        if user_text in {"台指", "台指期"}:
+            response = requests.get(
+                GAS_URL,
+                params={"q": "台指"},
+                timeout=15,
+            )
+            response.raise_for_status()
+            data = response.json()
 
-    r = requests.get(
-        GAS_URL,
-        params={
-            "q": "台指"
-        }
+            if "error" in data:
+                reply_text = f"⚠️ {data['error']}"
+            else:
+                change = str(data.get("change", ""))
+                change_icon = "▲" if change.startswith("+") else "▼" if change.startswith("-") else ""
+
+                reply_text = (
+                    f"📈 {data.get('name', '台指')}\n\n"
+                    f"目前點數：{data.get('price', '無資料')}\n"
+                    f"漲跌：{change_icon}{change.lstrip('+-')}\n"
+                    f"更新時間：{data.get('time', '無資料')}"
+                )
+
+        else:
+            reply_text = (
+                "目前可用指令：\n"
+                "• 台指\n"
+                "• 台指期"
+            )
+
+    except requests.RequestException as error:
+        print("Apps Script request error:", repr(error))
+        reply_text = "⚠️ 暫時無法取得台指資料，請稍後再試。"
+
+    except ValueError as error:
+        print("Apps Script JSON error:", repr(error))
+        reply_text = "⚠️ 行情資料格式異常，請稍後再試。"
+
+    configuration = Configuration(
+        access_token=channel_access_token
     )
 
-    data = r.json()
+    with ApiClient(configuration) as api_client:
+        messaging_api = MessagingApi(api_client)
 
-    reply_text = f"""📈 {data['name']}
-
-目前點數：
-{data['price']}
-
-漲跌：
-{data['change']}
-
-更新：
-{data['time']}
-"""
-
-else:
-
-    reply_text = f"收到：{user_text}"
+        messaging_api.reply_message(
+            ReplyMessageRequest(
+                reply_token=event.reply_token,
+                messages=[TextMessage(text=reply_text)],
+            )
+        )
