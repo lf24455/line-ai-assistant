@@ -21,7 +21,7 @@ channel_access_token = os.getenv("LINE_CHANNEL_ACCESS_TOKEN", "")
 
 GAS_URL = (
     "https://script.google.com/macros/s/"
-    "AKfycbxKbeEYsS2OtTPSKcfTnDibFS5KWFpuSI33b2Mi8Bkc96TAoeMjjuyhXgTmc8WwBk-W"
+    "AKfycbyO4D6oCx_z7xey-oHv8h2IXIA8US5_d_rqTzm5zTEFn5ntmMVKhd76sdDRu1LMvvuI"
     "/exec"
 )
 
