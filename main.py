@@ -146,41 +146,41 @@ def handle_text_message(event):
             print(data)
             reply_text = format_taifex_message(data)
 
-        else:
-            reply_text = (
-                "目前可用指令：\n"
-                "• 台指\n"
-                "• 台指期"
-            )
+       def format_taifex_message(data):
 
-    except requests.Timeout as error:
-        print("Apps Script timeout:", repr(error))
-        reply_text = "⚠️ 行情查詢逾時，請稍後再試。"
+    if "error" in data:
+        return f"⚠️ {data['error']}"
 
-    except requests.RequestException as error:
-        print("Apps Script request error:", repr(error))
-        reply_text = "⚠️ 暫時無法取得台指資料，請稍後再試。"
+    change = str(data["change"])
 
-    except ValueError as error:
-        print("Apps Script JSON error:", repr(error))
-        reply_text = "⚠️ 行情資料格式異常，請稍後再試。"
+    if change.startswith("-"):
+        icon = "▼"
+    else:
+        icon = "▲"
 
-    except Exception as error:
-        print("Message handler error:", repr(error))
-        reply_text = "⚠️ 系統處理訊息時發生錯誤。"
+    return f"""📈 {data['name']}
 
-    configuration = Configuration(
-        access_token=channel_access_token
-    )
+📅 契約
+{data['contract']}
 
-    with ApiClient(configuration) as api_client:
-        messaging_api = MessagingApi(api_client)
+💰 收盤
+{data['price']}
 
-        messaging_api.reply_message(
-            ReplyMessageRequest(
-                reply_token=event.reply_token,
-                messages=[
-                    TextMessage(text=reply_text)
-                ],
-            )
-        )
+📈 漲跌
+{icon}{change}
+
+📊 漲跌幅
+{data['changePercent']}
+
+⬆️ 最高
+{data['high']}
+
+⬇️ 最低
+{data['low']}
+
+📦 成交量
+{data['volume']}
+
+🕒 更新
+{data['queryTime']}
+"""
