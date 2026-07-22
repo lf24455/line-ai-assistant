@@ -19,7 +19,6 @@ app = FastAPI()
 channel_secret = os.getenv("LINE_CHANNEL_SECRET", "")
 channel_access_token = os.getenv("LINE_CHANNEL_ACCESS_TOKEN", "")
 
-# 這裡使用你目前新版的 Apps Script API
 GAS_URL = (
     "https://script.google.com/macros/s/"
     "AKfycbxKbeEYsS2OtTPSKcfTnDibFS5KWFpuSI33b2Mi8Bkc96TAoeMjjuyhXgTmc8WwBk-W"
@@ -71,8 +70,8 @@ def get_taifex_data() -> dict:
         params={"q": "台指"},
         timeout=20,
     )
-    response.raise_for_status()
 
+    response.raise_for_status()
     data = response.json()
 
     if not isinstance(data, dict):
@@ -84,35 +83,41 @@ def get_taifex_data() -> dict:
 def format_taifex_message(data: dict) -> str:
     if "error" in data:
         detail = data.get("detail")
+        preview = data.get("preview")
+
+        message = f"⚠️ {data['error']}"
 
         if detail:
-            return (
-                f"⚠️ {data['error']}\n"
-                f"詳細資訊：{detail}"
-            )
+            message += f"\n詳細資訊：{detail}"
 
-        return f"⚠️ {data['error']}"
+        if preview:
+            message += f"\n回傳內容：{preview}"
+
+        return message
 
     change = str(data.get("change", "0")).strip()
-    change_value = change.lstrip("+-")
 
     try:
-        numeric_change = float(change.replace(",", ""))
-    except ValueError:
+        numeric_change = float(
+            change.replace(",", "").replace("%", "")
+        )
+    except (ValueError, TypeError):
         numeric_change = 0
 
     if numeric_change > 0:
         change_icon = "▲"
+        change_text = change.lstrip("+")
     elif numeric_change < 0:
         change_icon = "▼"
+        change_text = change.lstrip("-")
     else:
         change_icon = "－"
+        change_text = "0"
 
     trading_date = str(
         data.get("tradingDate", "無資料")
     )
 
-    # 將 20260721 顯示成 2026/07/21
     if len(trading_date) == 8 and trading_date.isdigit():
         trading_date = (
             f"{trading_date[:4]}/"
@@ -122,13 +127,18 @@ def format_taifex_message(data: dict) -> str:
 
     return (
         f"📈 {data.get('name', '台指期')}\n\n"
-        f"近月契約：{data.get('contract', '無資料')}\n"
-        f"收盤點數：{data.get('price', '無資料')}\n"
-        f"漲跌：{change_icon}{change_value}\n"
-        f"漲跌幅：{data.get('changePercent', '無資料')}\n"
+        f"📅 近月契約：{data.get('contract', '無資料')}\n"
+        f"💰 收盤點數：{data.get('price', '無資料')}\n"
+        f"📊 漲跌：{change_icon}{change_text}\n"
+        f"📉 漲跌幅：{data.get('changePercent', '無資料')}\n\n"
+        f"開盤：{data.get('open', '無資料')}\n"
         f"最高：{data.get('high', '無資料')}\n"
         f"最低：{data.get('low', '無資料')}\n"
+        f"結算價：{data.get('settlementPrice', '無資料')}\n"
         f"成交量：{data.get('volume', '無資料')}\n"
+        f"未平倉量：{data.get('openInterest', '無資料')}\n"
+        f"最佳買價：{data.get('bestBid', '無資料')}\n"
+        f"最佳賣價：{data.get('bestAsk', '無資料')}\n\n"
         f"交易時段：{data.get('session', '無資料')}\n"
         f"資料日期：{trading_date}\n"
         f"查詢時間：{data.get('queryTime', '無資料')}\n\n"
@@ -143,44 +153,40 @@ def handle_text_message(event):
     try:
         if user_text in {"台指", "台指期"}:
             data = get_taifex_data()
-            print(data)
+            print("TAIFEX data:", data)
+
             reply_text = format_taifex_message(data)
 
-       def format_taifex_message(data):
+        else:
+            reply_text = (
+                "目前可用指令：\n"
+                "・台指\n"
+                "・台指期"
+            )
 
-    if "error" in data:
-        return f"⚠️ {data['error']}"
+    except requests.Timeout:
+        reply_text = "⚠️ 行情查詢逾時，請稍後再試。"
 
-    change = str(data["change"])
+    except requests.RequestException as error:
+        print("TAIFEX request error:", repr(error))
+        reply_text = "⚠️ 無法連線到行情服務，請稍後再試。"
 
-    if change.startswith("-"):
-        icon = "▼"
-    else:
-        icon = "▲"
+    except Exception as error:
+        print("Message handler error:", repr(error))
+        reply_text = "⚠️ 查詢台指期時發生錯誤。"
 
-    return f"""📈 {data['name']}
+    configuration = Configuration(
+        access_token=channel_access_token
+    )
 
-📅 契約
-{data['contract']}
+    with ApiClient(configuration) as api_client:
+        messaging_api = MessagingApi(api_client)
 
-💰 收盤
-{data['price']}
-
-📈 漲跌
-{icon}{change}
-
-📊 漲跌幅
-{data['changePercent']}
-
-⬆️ 最高
-{data['high']}
-
-⬇️ 最低
-{data['low']}
-
-📦 成交量
-{data['volume']}
-
-🕒 更新
-{data['queryTime']}
-"""
+        messaging_api.reply_message(
+            ReplyMessageRequest(
+                reply_token=event.reply_token,
+                messages=[
+                    TextMessage(text=reply_text)
+                ],
+            )
+        )
