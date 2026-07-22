@@ -1,5 +1,6 @@
 from datetime import datetime
 import requests
+GAS_URL = "https://script.google.com/macros/s/AKfycbxKbeEYsS2OtTPSKcfTnDibFS5KWFpuSI33b2Mi8Bkc96TAoeMjjuyhXgTmc8WwBk-W/exec"
 
 import os
 
@@ -116,28 +117,31 @@ def get_sheet_market_data() -> str:
 @handler.add(MessageEvent, message=TextMessageContent)
 def handle_text_message(event):
     user_text = event.message.text.strip()
+reply_text = ""
 
-    if user_text in {"台指", "台指期", "全部", "行情"}:
-        reply_text = get_sheet_market_data()
-    else:
-        reply_text = (
-            "目前可用指令：\n"
-            "• 台指\n"
-            "• 台指期\n"
-            "• 全部\n"
-            "• 行情"
-        )
+if user_text == "台指":
 
-    configuration = Configuration(
-        access_token=channel_access_token
+    r = requests.get(
+        GAS_URL,
+        params={
+            "q": "台指"
+        }
     )
 
-    with ApiClient(configuration) as api_client:
-        messaging_api = MessagingApi(api_client)
+    data = r.json()
 
-        messaging_api.reply_message(
-            ReplyMessageRequest(
-                reply_token=event.reply_token,
-                messages=[TextMessage(text=reply_text)],
-            )
-        )
+    reply_text = f"""📈 {data['name']}
+
+目前點數：
+{data['price']}
+
+漲跌：
+{data['change']}
+
+更新：
+{data['time']}
+"""
+
+else:
+
+    reply_text = f"收到：{user_text}"
