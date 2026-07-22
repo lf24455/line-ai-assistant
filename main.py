@@ -143,6 +143,7 @@ def handle_text_message(event):
     try:
         if user_text in {"台指", "台指期"}:
             data = get_taifex_data()
+            print(data)
             reply_text = format_taifex_message(data)
 
         else:
