@@ -134,12 +134,30 @@ def handle_text_message(event):
                 change = str(data.get("change", ""))
                 change_icon = "▲" if change.startswith("+") else "▼" if change.startswith("-") else ""
 
-                reply_text = (
-                    f"📈 {data.get('name', '台指')}\n\n"
-                    f"目前點數：{data.get('price', '無資料')}\n"
-                    f"漲跌：{change_icon}{change.lstrip('+-')}\n"
-                    f"更新時間：{data.get('time', '無資料')}"
-                )
+             change = str(data.get("change", "0"))
+change_value = change.lstrip("+-")
+
+if change.startswith("-"):
+    change_icon = "▼"
+elif change not in {"", "0", "0.0"}:
+    change_icon = "▲"
+else:
+    change_icon = "－"
+
+reply_text = (
+    f"📈 {data.get('name', '台指期')}\n\n"
+    f"近月契約：{data.get('contract', '無資料')}\n"
+    f"收盤點數：{data.get('price', '無資料')}\n"
+    f"漲跌：{change_icon}{change_value}\n"
+    f"漲跌幅：{data.get('changePercent', '無資料')}\n"
+    f"最高：{data.get('high', '無資料')}\n"
+    f"最低：{data.get('low', '無資料')}\n"
+    f"成交量：{data.get('volume', '無資料')}\n"
+    f"交易時段：{data.get('session', '無資料')}\n"
+    f"資料日期：{data.get('tradingDate', '無資料')}\n"
+    f"查詢時間：{data.get('queryTime', '無資料')}\n\n"
+    "⚠️ 此為期交所每日行情資料，非逐筆即時報價。"
+)
 
         else:
             reply_text = (
