@@ -1,9 +1,6 @@
-from datetime import datetime
-import requests
-GAS_URL = "https://script.google.com/macros/s/AKfycbxKbeEYsS2OtTPSKcfTnDibFS5KWFpuSI33b2Mi8Bkc96TAoeMjjuyhXgTmc8WwBk-W/exec"
-
 import os
 
+import requests
 from fastapi import FastAPI, Header, HTTPException, Request
 from linebot.v3 import WebhookHandler
 from linebot.v3.exceptions import InvalidSignatureError
@@ -21,9 +18,11 @@ app = FastAPI()
 
 channel_secret = os.getenv("LINE_CHANNEL_SECRET", "")
 channel_access_token = os.getenv("LINE_CHANNEL_ACCESS_TOKEN", "")
-SHEET_API_URL = (
+
+# 這裡使用你目前新版的 Apps Script API
+GAS_URL = (
     "https://script.google.com/macros/s/"
-    "AKfycbzjFS9NuaGZaagTVAdltf1o2jPr3qbDAXUX9GQGq7ajkWM6QWFaw6k3SFp0SqQFQfbO"
+    "AKfycbxKbeEYsS2OtTPSKcfTnDibFS5KWFpuSI33b2Mi8Bkc96TAoeMjjuyhXgTmc8WwBk-W"
     "/exec"
 )
 
@@ -44,7 +43,6 @@ async def webhook(
 
     print("=== WEBHOOK START ===")
     print("Signature exists:", bool(x_line_signature))
-    print("Body:", body)
     print("Secret exists:", bool(channel_secret))
 
     try:
@@ -58,7 +56,7 @@ async def webhook(
         )
 
     except Exception as error:
-        print("Other Error:", repr(error))
+        print("Webhook error:", repr(error))
         raise HTTPException(
             status_code=500,
             detail="Webhook processing error",
@@ -67,97 +65,85 @@ async def webhook(
     return {"status": "ok"}
 
 
-def get_taifex_message() -> str:
-    """
-    第一版先確認機器人能連到期交所 OpenAPI。
-    下一步再依實際資料欄位挑出 TX 近月契約。
-    """
-    api_url = "https://openapi.taifex.com.tw/v1/DailyMarketReportFut"
+def get_taifex_data() -> dict:
+    response = requests.get(
+        GAS_URL,
+        params={"q": "台指"},
+        timeout=20,
+    )
+    response.raise_for_status()
+
+    data = response.json()
+
+    if not isinstance(data, dict):
+        raise ValueError("Apps Script 回傳格式不是 JSON 物件")
+
+    return data
+
+
+def format_taifex_message(data: dict) -> str:
+    if "error" in data:
+        detail = data.get("detail")
+
+        if detail:
+            return (
+                f"⚠️ {data['error']}\n"
+                f"詳細資訊：{detail}"
+            )
+
+        return f"⚠️ {data['error']}"
+
+    change = str(data.get("change", "0")).strip()
+    change_value = change.lstrip("+-")
 
     try:
-        response = requests.get(api_url, timeout=15)
-        response.raise_for_status()
-        data = response.json()
+        numeric_change = float(change.replace(",", ""))
+    except ValueError:
+        numeric_change = 0
 
-        if not isinstance(data, list) or not data:
-            return "⚠️ 目前沒有取得台指期資料，請稍後再試。"
+    if numeric_change > 0:
+        change_icon = "▲"
+    elif numeric_change < 0:
+        change_icon = "▼"
+    else:
+        change_icon = "－"
 
-        return (
-            "📈 台指期資料來源已連線\n\n"
-            f"取得資料筆數：{len(data)} 筆\n"
-            f"查詢時間：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
-            "下一步會自動篩選 TX 近月契約與目前點數。"
+    trading_date = str(
+        data.get("tradingDate", "無資料")
+    )
+
+    # 將 20260721 顯示成 2026/07/21
+    if len(trading_date) == 8 and trading_date.isdigit():
+        trading_date = (
+            f"{trading_date[:4]}/"
+            f"{trading_date[4:6]}/"
+            f"{trading_date[6:]}"
         )
 
-    except requests.RequestException as error:
-        print("TAIFEX API request error:", repr(error))
-        return "⚠️ 無法連接期交所資料，請稍後再試。"
+    return (
+        f"📈 {data.get('name', '台指期')}\n\n"
+        f"近月契約：{data.get('contract', '無資料')}\n"
+        f"收盤點數：{data.get('price', '無資料')}\n"
+        f"漲跌：{change_icon}{change_value}\n"
+        f"漲跌幅：{data.get('changePercent', '無資料')}\n"
+        f"最高：{data.get('high', '無資料')}\n"
+        f"最低：{data.get('low', '無資料')}\n"
+        f"成交量：{data.get('volume', '無資料')}\n"
+        f"交易時段：{data.get('session', '無資料')}\n"
+        f"資料日期：{trading_date}\n"
+        f"查詢時間：{data.get('queryTime', '無資料')}\n\n"
+        "⚠️ 此為期交所每日行情資料，非逐筆即時報價。"
+    )
 
-    except ValueError as error:
-        print("TAIFEX JSON error:", repr(error))
-        return "⚠️ 期交所回傳格式異常，請稍後再試。"
 
-
-
-def get_sheet_market_data() -> str:
-    try:
-        response = requests.get(SHEET_API_URL, timeout=15)
-        response.raise_for_status()
-
-        result = response.text.strip()
-
-        if not result:
-            return "⚠️ Google Sheet 目前沒有回傳資料。"
-
-        return result
-
-    except requests.RequestException as error:
-        print("Google Apps Script error:", repr(error))
-        return "⚠️ 暫時無法讀取行情資料，請稍後再試。"
 @handler.add(MessageEvent, message=TextMessageContent)
 def handle_text_message(event):
     user_text = event.message.text.strip()
 
     try:
         if user_text in {"台指", "台指期"}:
-            response = requests.get(
-                GAS_URL,
-                params={"q": "台指"},
-                timeout=15,
-            )
-            response.raise_for_status()
-            data = response.json()
-
-            if "error" in data:
-                reply_text = f"⚠️ {data['error']}"
-            else:
-                change = str(data.get("change", ""))
-                change_icon = "▲" if change.startswith("+") else "▼" if change.startswith("-") else ""
-
-             change = str(data.get("change", "0"))
-change_value = change.lstrip("+-")
-
-if change.startswith("-"):
-    change_icon = "▼"
-elif change not in {"", "0", "0.0"}:
-    change_icon = "▲"
-else:
-    change_icon = "－"
-
-reply_text = (
-    f"📈 {data.get('name', '台指期')}\n\n"
-    f"近月契約：{data.get('contract', '無資料')}\n"
-    f"收盤點數：{data.get('price', '無資料')}\n"
-    f"漲跌：{change_icon}{change_value}\n"
-    f"漲跌幅：{data.get('changePercent', '無資料')}\n"
-    f"最高：{data.get('high', '無資料')}\n"
-    f"最低：{data.get('low', '無資料')}\n"
-    f"成交量：{data.get('volume', '無資料')}\n"
-    f"交易時段：{data.get('session', '無資料')}\n"
-    f"資料日期：{data.get('tradingDate', '無資料')}\n"
-    f"查詢時間：{data.get('queryTime', '無資料')}\n\n"
-    "⚠️ 此為期交所每日行情資料，非逐筆即時報價。"
-)
+            data = get_taifex_data()
+            reply_text = format_taifex_message(data)
 
         else:
             reply_text = (
@@ -166,6 +152,10 @@ reply_text = (
                 "• 台指期"
             )
 
+    except requests.Timeout as error:
+        print("Apps Script timeout:", repr(error))
+        reply_text = "⚠️ 行情查詢逾時，請稍後再試。"
+
     except requests.RequestException as error:
         print("Apps Script request error:", repr(error))
         reply_text = "⚠️ 暫時無法取得台指資料，請稍後再試。"
@@ -173,6 +163,10 @@ reply_text = (
     except ValueError as error:
         print("Apps Script JSON error:", repr(error))
         reply_text = "⚠️ 行情資料格式異常，請稍後再試。"
+
+    except Exception as error:
+        print("Message handler error:", repr(error))
+        reply_text = "⚠️ 系統處理訊息時發生錯誤。"
 
     configuration = Configuration(
         access_token=channel_access_token
@@ -184,6 +178,8 @@ reply_text = (
         messaging_api.reply_message(
             ReplyMessageRequest(
                 reply_token=event.reply_token,
-                messages=[TextMessage(text=reply_text)],
+                messages=[
+                    TextMessage(text=reply_text)
+                ],
             )
         )
