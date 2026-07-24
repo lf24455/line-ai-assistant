@@ -9,6 +9,8 @@ from commands.global_market import (
     format_us_market,
 )
 from commands.market import format_market_message
+from commands.news import format_news_message
+from commands.today import format_today_message
 from commands.stoploss import (
     format_capital_risk_message,
     format_risk_budget_message,
@@ -35,6 +37,10 @@ def route_text_command(user_text: str) -> str:
 
         normalized = user_text.lower().replace(" ", "")
 
+        if normalized in {"今天", "今日", "懶人包"}:
+            return format_today_message()
+        if normalized in {"新聞", "市場新聞", "財經新聞"}:
+            return format_news_message()
         if normalized in {"市場", "全球市場"}:
             return format_market_summary()
         if normalized in {"台股", "台灣市場"}:

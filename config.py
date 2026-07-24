@@ -26,3 +26,16 @@ YAHOO_HEADERS = {
     "Cache-Control": "no-cache",
     "Pragma": "no-cache",
 }
+
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5-mini")
+
+NEWS_QUERY = os.getenv(
+    "NEWS_QUERY",
+    "台股 OR 台積電 OR 美股 OR 聯準會 OR 半導體 when:1d",
+)
+NEWS_HEADERS = {
+    "User-Agent": YAHOO_HEADERS["User-Agent"],
+    "Accept": "application/rss+xml, application/xml, text/xml;q=0.9, */*;q=0.8",
+    "Accept-Language": "zh-TW,zh;q=0.9,en-US;q=0.8,en;q=0.7",
+}
