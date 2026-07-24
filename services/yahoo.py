@@ -130,11 +130,7 @@ def get_yahoo_taifex_data() -> dict:
         or extract_yahoo_number(searchable_text, "成交量")
     )
 
-    best_bid = extract_yahoo_number(searchable_text, "買價")
-    best_ask = extract_yahoo_number(searchable_text, "賣價")
-    open_interest = extract_yahoo_number(
-        searchable_text,
-        "未平倉",
+ \
     )
     data_time = extract_yahoo_time(searchable_text)
 
