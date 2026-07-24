@@ -10,7 +10,7 @@ app = FastAPI(title="LINE AI Assistant", version="4.0.1")
 def home():
     return {
         "status": "LINE bot is running",
-        "version": "V4.0.1 modular refactor",
+        "version": "V4.0.2 Risk Manager",
     }
 
 
