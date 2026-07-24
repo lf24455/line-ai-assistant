@@ -110,18 +110,27 @@ def get_yahoo_taifex_data() -> dict:
     if numeric_price <= 0:
         raise ValueError("Yahoo 成交價不是有效數字。")
 
-    if not change and previous_close:
-        change = str(numeric_price - parse_number(previous_close))
+    # 優先使用成交價與昨收重新計算，避免 Yahoo 頁面的漲跌符號解析錯誤
+if previous_close:
+    previous_close_number = parse_number(previous_close)
 
-    if not change_percent and change and previous_close:
-        previous_close_number = parse_number(previous_close)
-        if previous_close_number != 0:
-            calculated_percent = parse_number(change) / previous_close_number * 100
-            change_percent = f"{calculated_percent:.2f}%"
+    if previous_close_number > 0:
+        calculated_change = numeric_price - previous_close_number
+        calculated_percent = calculated_change / previous_close_number * 100
+
+        change = f"{calculated_change:.0f}"
+        change_percent = f"{calculated_percent:+.2f}%"
 
     if not data_time:
         data_time = datetime.now().strftime("%Y/%m/%d %H:%M:%S")
+numeric_change = parse_number(change or "0")
 
+if numeric_change > 0:
+    direction = "up"
+elif numeric_change < 0:
+    direction = "down"
+else:
+    direction = "flat"
     data = {
         "name": "台指期近一",
         "symbol": "WTX&",
