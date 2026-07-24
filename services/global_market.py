@@ -11,6 +11,7 @@ import requests
 from config import YAHOO_HEADERS
 from services.numbers import parse_number
 from services.market import get_market_data
+from services.market_math import calculate_change
 
 CACHE_TTL_SECONDS = 15
 STALE_CACHE_SECONDS = 600
@@ -147,20 +148,27 @@ def get_taifex_quote() -> dict[str, Any]:
         return cached
     try:
         raw = get_market_data()
+        price = _num(raw.get("price"))
+        previous_close = _num(raw.get("previousClose"))
+        if not price:
+            raise ValueError("台指期價格無效")
+        if previous_close not in (None, 0):
+            change, percent = calculate_change(price, previous_close)
+        else:
+            change = _num(raw.get("change")) or 0.0
+            percent = _num(str(raw.get("changePercent", "0")).replace("%", "")) or 0.0
         data = {
             "key": "taifex",
             "symbol": raw.get("symbol", "WTX&"),
             "name": "台指期",
-            "price": _num(raw.get("price")),
-            "previousClose": _num(raw.get("previousClose")),
-            "change": _num(raw.get("change")) or 0.0,
-            "changePercent": _num(str(raw.get("changePercent", "0")).replace("%", "")) or 0.0,
+            "price": price,
+            "previousClose": previous_close,
+            "change": change,
+            "changePercent": percent,
             "queryTime": raw.get("queryTime"),
             "source": raw.get("source", "Yahoo"),
             "cache": "live",
         }
-        if not data["price"]:
-            raise ValueError("台指期價格無效")
         _cache_set(cache_key, data)
         return data
     except Exception:

@@ -6,6 +6,7 @@ from typing import Optional
 import requests
 
 from config import YAHOO_HEADERS, YAHOO_URL
+from services.market_math import calculate_change
 from services.numbers import parse_number
 
 
@@ -92,13 +93,11 @@ def get_yahoo_taifex_data() -> dict:
     high = extract_yahoo_number(searchable_text, "最高")
     low = extract_yahoo_number(searchable_text, "最低")
     previous_close = extract_yahoo_number(searchable_text, "昨收")
-    change = extract_yahoo_number(searchable_text, "漲跌")
-    change_percent = extract_yahoo_percent(searchable_text, "漲跌幅")
+    # Yahoo HTML 的漲跌欄位有時會遺失負號，因此只讀成交價與昨收後自行計算。
     volume = (
         extract_yahoo_number(searchable_text, "總量")
         or extract_yahoo_number(searchable_text, "成交量")
     )
-    best_bid = extract_yahoo_number(searchable_text, "買價")
     best_ask = extract_yahoo_number(searchable_text, "賣價")
     open_interest = extract_yahoo_number(searchable_text, "未平倉")
     data_time = extract_yahoo_time(searchable_text)
@@ -110,14 +109,10 @@ def get_yahoo_taifex_data() -> dict:
     if numeric_price <= 0:
         raise ValueError("Yahoo 成交價不是有效數字。")
 
-    if not change and previous_close:
-        change = str(numeric_price - parse_number(previous_close))
-
-    if not change_percent and change and previous_close:
-        previous_close_number = parse_number(previous_close)
-        if previous_close_number != 0:
-            calculated_percent = parse_number(change) / previous_close_number * 100
-            change_percent = f"{calculated_percent:.2f}%"
+    change = 0.0
+    change_percent = 0.0
+    if previous_close:
+        change, change_percent = calculate_change(price, previous_close)
 
     if not data_time:
         data_time = datetime.now().strftime("%Y/%m/%d %H:%M:%S")
@@ -126,14 +121,13 @@ def get_yahoo_taifex_data() -> dict:
         "name": "台指期近一",
         "symbol": "WTX&",
         "price": price,
-        "change": change or "0",
-        "changePercent": change_percent or "無資料",
+        "change": change,
+        "changePercent": change_percent,
         "open": open_price or "無資料",
         "high": high or "無資料",
         "low": low or "無資料",
         "previousClose": previous_close or "無資料",
         "volume": volume or "無資料",
-        "bestBid": best_bid or "無資料",
         "bestAsk": best_ask or "無資料",
         "openInterest": open_interest or "無資料",
         "queryTime": data_time,

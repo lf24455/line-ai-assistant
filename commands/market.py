@@ -30,8 +30,13 @@ def format_market_message(data: dict) -> str:
     query_time = data.get("queryTime", "無資料")
     change_percent = data.get("changePercent", "無資料")
 
-    if change_percent != "無資料" and not str(change_percent).endswith("%"):
-        change_percent = f"{change_percent}%"
+    if change_percent != "無資料":
+        try:
+            numeric_percent = parse_number(str(change_percent).replace("%", ""))
+            change_percent = f"{numeric_percent:+.2f}%"
+        except (ValueError, TypeError):
+            if not str(change_percent).endswith("%"):
+                change_percent = f"{change_percent}%"
 
     if source == "Yahoo":
         source_message = "Yahoo 免費公開行情"
@@ -43,7 +48,7 @@ def format_market_message(data: dict) -> str:
         )
 
     message = (
-        f"📈 {data.get('name', '台指期')}\n\n"
+        f"📊 {data.get('name', '台指期')}\n\n"
         f"💰 目前成交：{price}\n"
         f"📊 {change_status}：{change_icon}{change_text}\n"
         f"📉 漲跌幅：{change_percent}\n\n"
