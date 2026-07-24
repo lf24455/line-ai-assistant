@@ -1,6 +1,13 @@
 import requests
 
 from commands.help import command_help
+from commands.global_market import (
+    format_etf_market,
+    format_market_summary,
+    format_single_quote,
+    format_tw_market,
+    format_us_market,
+)
 from commands.market import format_market_message
 from commands.stoploss import (
     format_capital_risk_message,
@@ -25,6 +32,40 @@ def _validate_common(command: dict) -> str | None:
 def route_text_command(user_text: str) -> str:
     try:
         user_text = user_text.strip()
+
+        normalized = user_text.lower().replace(" ", "")
+
+        if normalized in {"市場", "全球市場"}:
+            return format_market_summary()
+        if normalized in {"台股", "台灣市場"}:
+            return format_tw_market()
+        if normalized in {"美股", "美國市場"}:
+            return format_us_market()
+        if normalized in {"etf", "台灣etf"}:
+            return format_etf_market()
+
+        single_quotes = {
+            "0050": "0050",
+            "0056": "0056",
+            "00919": "00919",
+            "00940": "00940",
+            "台積電": "tsmc",
+            "2330": "tsmc",
+            "道瓊": "dow",
+            "dow": "dow",
+            "sp500": "sp500",
+            "s&p500": "sp500",
+            "nasdaq": "nasdaq",
+            "那斯達克": "nasdaq",
+            "費半": "sox",
+            "美元": "usd_twd",
+            "美金": "usd_twd",
+            "usd": "usd_twd",
+            "tsm": "tsm_adr",
+            "tsmadr": "tsm_adr",
+        }
+        if normalized in single_quotes:
+            return format_single_quote(single_quotes[normalized])
 
         if user_text in {"台指", "台指期"}:
             return format_market_message(get_market_data())
