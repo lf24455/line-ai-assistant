@@ -25,7 +25,6 @@ def format_market_message(data: dict) -> str:
     low = normalize_numeric_text(data.get("low"))
     previous_close = normalize_numeric_text(data.get("previousClose", "無資料"))
     volume = normalize_numeric_text(data.get("volume"))
-    best_bid = normalize_numeric_text(data.get("bestBid"))
     best_ask = normalize_numeric_text(data.get("bestAsk"))
     source = data.get("source", "未知")
     query_time = data.get("queryTime", "無資料")
@@ -57,8 +56,6 @@ def format_market_message(data: dict) -> str:
         message += f"昨收：{previous_close}\n"
     if volume != "無資料":
         message += f"總量：{volume}\n"
-    if best_bid != "無資料":
-        message += f"買價：{best_bid}\n"
     if best_ask != "無資料":
         message += f"賣價：{best_ask}\n"
 
